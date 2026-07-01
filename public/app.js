@@ -762,12 +762,193 @@ async function renderMapTab() {
   };
 }
 
-function renderRisksTab() {
-  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Risks — Coming in next task.</p></div>`;
+async function renderRisksTab() {
+  let risks = await apiFetch(`/api/jobs/${_currentJobId}/risks`);
+
+  function renderTable() {
+    document.getElementById('risks-tbody').innerHTML = risks.length
+      ? risks.map(r => {
+          return `
+          <tr>
+            <td>${r.hazard || '—'}</td>
+            <td style="font-size:11px;color:var(--muted)">${r.cause || '—'}</td>
+            <td style="font-size:11px">${r.consequence || '—'}</td>
+            <td>${r.severity||'—'}</td><td>${r.probability||'—'}</td>
+            <td>${riskPill(r.severity, r.probability)}</td>
+            <td style="font-size:11px;max-width:200px">${r.mitigations || '—'}</td>
+            <td>${r.residual_severity||'—'}</td><td>${r.residual_probability||'—'}</td>
+            <td>${riskPill(r.residual_severity, r.residual_probability)}</td>
+            <td>
+              <div class="risk-row-actions">
+                <button class="btn btn-ghost btn-sm" onclick="editRisk('${r.id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRisk('${r.id}')">✕</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">No risks added yet.</td></tr>`;
+  }
+
+  document.getElementById('tab-content').innerHTML = `
+    <div class="ai-section" style="margin-bottom:16px">
+      <p>AI can draft an initial risk table based on this job's details and ground risk assessment.</p>
+      <button class="btn btn-primary btn-sm" id="btn-ai-risks">AI Draft Risks</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2>Risk Assessment</h2>
+      <button class="btn btn-secondary btn-sm" onclick="openAddRiskModal()">+ Add Risk</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Hazard</th><th>Cause</th><th>Consequence</th>
+            <th>S</th><th>P</th><th>Initial</th>
+            <th>Mitigations</th>
+            <th>RS</th><th>RP</th><th>Residual</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="risks-tbody"></tbody>
+      </table>
+    </div>
+  `;
+
+  renderTable();
+
+  document.getElementById('btn-ai-risks').addEventListener('click', async e => {
+    e.target.disabled = true;
+    e.target.innerHTML = '<span class="spinner"></span> Drafting…';
+    try {
+      const aircraft = _currentJob.aircraft_id ? await apiFetch('/api/aircraft').then(list => list.find(a => a.id === _currentJob.aircraft_id)) : null;
+      const { risks: drafted } = await apiFetch('/api/ai/risks', {
+        method: 'POST',
+        body: {
+          job_title: _currentJob.title,
+          description: _currentJob.description,
+          operation_type: _currentJob.operation_type,
+          location_name: _currentJob.location_name,
+          aircraft_model: aircraft ? `${aircraft.make} ${aircraft.model}` : 'Unknown',
+          ground_risk_summary: _currentJob.ground_risk_summary,
+        },
+      });
+      for (const r of drafted) {
+        const created = await apiFetch(`/api/jobs/${_currentJobId}/risks`, { method: 'POST', body: r });
+        risks.push(created);
+      }
+      renderTable();
+      showToast(`${drafted.length} risk rows drafted`);
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { e.target.disabled = false; e.target.textContent = 'AI Draft Risks'; }
+  });
+
+  window.deleteRisk = async (id) => {
+    if (!confirm('Remove this risk row?')) return;
+    await apiFetch(`/api/jobs/${_currentJobId}/risks/${id}`, { method: 'DELETE' });
+    risks = risks.filter(r => r.id !== id);
+    renderTable();
+  };
+
+  window.editRisk = (id) => openRiskModal(risks.find(r => r.id === id));
+
+  window.openAddRiskModal = () => openRiskModal(null);
+
+  function openRiskModal(risk) {
+    const isEdit = !!risk;
+    const overlay = openModal(`
+      <div class="modal-header">
+        <h2>${isEdit ? 'Edit Risk' : 'Add Risk'}</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+      <form id="risk-form">
+        <div class="form-group"><label>Hazard *</label><input name="hazard" value="${risk?.hazard||''}" required></div>
+        <div class="form-row form-row-2">
+          <div class="form-group"><label>Cause</label><input name="cause" value="${risk?.cause||''}"></div>
+          <div class="form-group"><label>Consequence</label><input name="consequence" value="${risk?.consequence||''}"></div>
+        </div>
+        <div class="form-row form-row-2">
+          <div class="form-group"><label>Severity (1–5)</label><input type="number" min="1" max="5" name="severity" value="${risk?.severity||3}"></div>
+          <div class="form-group"><label>Probability (1–5)</label><input type="number" min="1" max="5" name="probability" value="${risk?.probability||3}"></div>
+        </div>
+        <div class="form-group"><label>Mitigations</label><textarea name="mitigations" rows="3">${risk?.mitigations||''}</textarea></div>
+        <div class="form-row form-row-2">
+          <div class="form-group"><label>Residual Severity</label><input type="number" min="1" max="5" name="residual_severity" value="${risk?.residual_severity||2}"></div>
+          <div class="form-group"><label>Residual Probability</label><input type="number" min="1" max="5" name="residual_probability" value="${risk?.residual_probability||2}"></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Save' : 'Add Risk'}</button>
+        </div>
+      </form>
+    `);
+
+    overlay.querySelector('#risk-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = Object.fromEntries(fd.entries());
+      ['severity','probability','residual_severity','residual_probability'].forEach(k => body[k] = parseInt(body[k]));
+      try {
+        if (isEdit) {
+          const updated = await apiFetch(`/api/jobs/${_currentJobId}/risks/${risk.id}`, { method: 'PUT', body });
+          risks = risks.map(r => r.id === risk.id ? updated : r);
+        } else {
+          const created = await apiFetch(`/api/jobs/${_currentJobId}/risks`, { method: 'POST', body });
+          risks.push(created);
+        }
+        overlay.remove();
+        renderTable();
+        showToast(isEdit ? 'Risk updated' : 'Risk added');
+      } catch (err) { showToast(err.message, 'error'); }
+    });
+  }
 }
 
-function renderMethodTab() {
-  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Method Statement — Coming in next task.</p></div>`;
+async function renderMethodTab() {
+  const j = _currentJob;
+
+  document.getElementById('tab-content').innerHTML = `
+    <div class="ai-section" style="margin-bottom:16px">
+      <p>AI drafts a method statement in your voice, based on this job's details and aircraft.</p>
+      <button class="btn btn-primary btn-sm" id="btn-ai-method">AI Draft Method Statement</button>
+    </div>
+    <div class="form-group">
+      <label>Method Statement</label>
+      <textarea id="method-text" rows="20" style="width:100%;font-size:12px">${j.method_statement || ''}</textarea>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveMethod()">Save Method Statement</button>
+  `;
+
+  document.getElementById('btn-ai-method').addEventListener('click', async e => {
+    e.target.disabled = true;
+    e.target.innerHTML = '<span class="spinner"></span> Drafting…';
+    try {
+      const aircraft = j.aircraft_id ? await apiFetch('/api/aircraft').then(list => list.find(a => a.id === j.aircraft_id)) : null;
+      const { method_statement } = await apiFetch('/api/ai/method-statement', {
+        method: 'POST',
+        body: {
+          job_title: j.title,
+          description: j.description,
+          operation_type: j.operation_type,
+          location_name: j.location_name,
+          aircraft_model: aircraft ? `${aircraft.make} ${aircraft.model}` : 'Unknown',
+          crew_structure: 'Remote Pilot + Visual Observer',
+        },
+      });
+      document.getElementById('method-text').value = method_statement;
+      showToast('Method statement drafted');
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { e.target.disabled = false; e.target.textContent = 'AI Draft Method Statement'; }
+  });
+
+  window.saveMethod = async () => {
+    const text = document.getElementById('method-text').value;
+    try {
+      _currentJob = await apiFetch(`/api/jobs/${_currentJobId}`, {
+        method: 'PUT',
+        body: { ..._currentJob, method_statement: text },
+      });
+      showToast('Method statement saved');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
 }
 
 function renderDocumentTab() {

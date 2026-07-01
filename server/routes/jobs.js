@@ -91,7 +91,7 @@ router.put('/:id', (req, res) => {
     start_date, start_time, end_time, location_name, location_address,
     lat, lng, elevation_ft, airspace_class, airspace_users,
     area_of_operations, map_static_image_url, ground_risk_summary,
-    aircraft_id, notes
+    aircraft_id, notes, method_statement
   } = req.body;
 
   db.prepare(`
@@ -100,7 +100,7 @@ router.put('/:id', (req, res) => {
       start_date=?, start_time=?, end_time=?, location_name=?, location_address=?,
       lat=?, lng=?, elevation_ft=?, airspace_class=?,
       airspace_users=?, area_of_operations=?, map_static_image_url=?,
-      ground_risk_summary=?, aircraft_id=?, notes=?,
+      ground_risk_summary=?, aircraft_id=?, notes=?, method_statement=?,
       updated_at=datetime('now')
     WHERE id=?
   `).run(
@@ -110,6 +110,7 @@ router.put('/:id', (req, res) => {
     airspace_users ? JSON.stringify(airspace_users) : '[]',
     area_of_operations ? JSON.stringify(area_of_operations) : null,
     map_static_image_url || null, ground_risk_summary || null, aircraft_id || null, notes || null,
+    method_statement || null,
     req.params.id
   );
   res.json(parseJobJson(db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id)));
