@@ -123,6 +123,7 @@ function riskLabel(score) {
   if (score <= 7) return 'MED';
   return 'HIGH';
 }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function riskPill(s, p) {
   const score = riskScore(s, p);
   const level = riskLevel(score);
@@ -860,19 +861,19 @@ async function renderRisksTab() {
         <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
       </div>
       <form id="risk-form">
-        <div class="form-group"><label>Hazard *</label><input name="hazard" value="${risk?.hazard||''}" required></div>
+        <div class="form-group"><label>Hazard *</label><input name="hazard" value="${esc(risk?.hazard||'')}" required></div>
         <div class="form-row form-row-2">
-          <div class="form-group"><label>Cause</label><input name="cause" value="${risk?.cause||''}"></div>
-          <div class="form-group"><label>Consequence</label><input name="consequence" value="${risk?.consequence||''}"></div>
+          <div class="form-group"><label>Cause</label><input name="cause" value="${esc(risk?.cause||'')}"></div>
+          <div class="form-group"><label>Consequence</label><input name="consequence" value="${esc(risk?.consequence||'')}"></div>
         </div>
         <div class="form-row form-row-2">
-          <div class="form-group"><label>Severity (1–5)</label><input type="number" min="1" max="5" name="severity" value="${risk?.severity||3}"></div>
-          <div class="form-group"><label>Probability (1–5)</label><input type="number" min="1" max="5" name="probability" value="${risk?.probability||3}"></div>
+          <div class="form-group"><label>Severity (1–5)</label><input type="number" min="1" max="5" name="severity" value="${esc(risk?.severity||3)}"></div>
+          <div class="form-group"><label>Probability (1–5)</label><input type="number" min="1" max="5" name="probability" value="${esc(risk?.probability||3)}"></div>
         </div>
-        <div class="form-group"><label>Mitigations</label><textarea name="mitigations" rows="3">${risk?.mitigations||''}</textarea></div>
+        <div class="form-group"><label>Mitigations</label><textarea name="mitigations" rows="3">${esc(risk?.mitigations||'')}</textarea></div>
         <div class="form-row form-row-2">
-          <div class="form-group"><label>Residual Severity</label><input type="number" min="1" max="5" name="residual_severity" value="${risk?.residual_severity||2}"></div>
-          <div class="form-group"><label>Residual Probability</label><input type="number" min="1" max="5" name="residual_probability" value="${risk?.residual_probability||2}"></div>
+          <div class="form-group"><label>Residual Severity</label><input type="number" min="1" max="5" name="residual_severity" value="${esc(risk?.residual_severity||2)}"></div>
+          <div class="form-group"><label>Residual Probability</label><input type="number" min="1" max="5" name="residual_probability" value="${esc(risk?.residual_probability||2)}"></div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
           <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
