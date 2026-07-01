@@ -143,18 +143,161 @@ function openModal(html) {
 }
 
 // ══════════════════════════════════════════════
-// SCREEN: DASHBOARD (stub — expanded in Task 12)
+// SCREEN: DASHBOARD
 // ══════════════════════════════════════════════
 
 async function renderDashboard() {
-  document.getElementById('app').innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
-  // Implemented in Task 12
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
+
+  const [jobs, settings] = await Promise.all([
+    apiFetch('/api/jobs'),
+    apiFetch('/api/settings'),
+  ]);
+
+  const today = new Date();
+  const in30 = new Date(today); in30.setDate(today.getDate() + 30);
+
+  const upcoming = jobs.filter(j => {
+    if (!j.start_date) return false;
+    const d = new Date(j.start_date);
+    return d >= today && d <= in30 && j.status !== 'aborted' && j.status !== 'complete';
+  }).sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+  const active = jobs.filter(j => ['new','scoped','planned','work_complete','on_hold'].includes(j.status));
+  const outstanding = jobs.filter(j => j.status !== 'complete' && j.status !== 'aborted');
+
+  // PDRA01 expiry warning
+  let expiryWarning = '';
+  if (settings.pdra01_expiry) {
+    const expDate = new Date(settings.pdra01_expiry);
+    const daysLeft = Math.ceil((expDate - today) / 86400000);
+    if (daysLeft <= 90) {
+      const cls = daysLeft <= 30 ? 'danger' : 'warn';
+      expiryWarning = `<div class="card" style="border-color: var(--${cls}); margin-bottom: 20px;">
+        <span style="color:var(--${cls})">⚠ PDRA01 expires ${fmtDate(settings.pdra01_expiry)} — ${daysLeft} days remaining</span>
+      </div>`;
+    }
+  }
+
+  const upcomingRows = upcoming.length
+    ? upcoming.map(j => `
+      <tr onclick="navigate('#/jobs/${j.id}')">
+        <td>${fmtDate(j.start_date)}</td>
+        <td>${j.title}</td>
+        <td>${j.client_name || '—'}</td>
+        <td>${j.location_name || '—'}</td>
+        <td>${statusChip(j.status)}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5"><div class="empty-state" style="padding:24px"><p>No upcoming jobs in the next 30 days.</p></div></td></tr>`;
+
+  app.innerHTML = `
+    <div class="screen-header">
+      <div class="screen-header-left">
+        <h1>Dashboard</h1>
+        <p>${today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      </div>
+      <button class="btn btn-primary" onclick="openCreateJobModal()">+ New Job</button>
+    </div>
+
+    ${expiryWarning}
+
+    <div class="card-grid card-grid-4" style="margin-bottom:28px">
+      <div class="stat-card">
+        <div class="stat-value">${upcoming.length}</div>
+        <div class="stat-label">Upcoming (30d)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${active.length}</div>
+        <div class="stat-label">Active Jobs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${jobs.filter(j=>j.status==='complete').length}</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="font-size:16px">${settings.pdra01_expiry ? fmtDate(settings.pdra01_expiry) : '—'}</div>
+        <div class="stat-label">PDRA01 Expiry</div>
+      </div>
+    </div>
+
+    <h2>Upcoming Jobs</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Job</th><th>Client</th><th>Location</th><th>Status</th></tr></thead>
+        <tbody>${upcomingRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════
+// MODAL: CREATE JOB
+// ══════════════════════════════════════════════
+
+async function openCreateJobModal(prefill = {}) {
+  const clients = await apiFetch('/api/clients');
+  const clientOpts = clients.map(c => `<option value="${c.id}" ${prefill.client_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('');
+
+  const overlay = openModal(`
+    <div class="modal-header">
+      <h2>New Job</h2>
+      <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+    </div>
+    <form id="create-job-form">
+      <div class="form-group"><label>Title *</label><input name="title" required value="${prefill.title || ''}"></div>
+      <div class="form-row form-row-2">
+        <div class="form-group"><label>Client</label>
+          <select name="client_id"><option value="">— No client —</option>${clientOpts}</select>
+        </div>
+        <div class="form-group"><label>Country</label>
+          <select name="country">
+            <option value="uk">United Kingdom</option>
+            <option value="us">United States</option>
+            <option value="ca">Canada</option>
+            <option value="ie">Ireland</option>
+            <option value="at">Austria</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group"><label>Operation Type</label>
+          <select name="operation_type">
+            <option value="UK_PDRA01">UK PDRA01</option>
+            <option value="UK_STS">UK STS</option>
+            <option value="INTERNATIONAL">International</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Start Date</label><input type="date" name="start_date" value="${prefill.start_date || ''}"></div>
+      </div>
+      <div class="form-group"><label>Location Name</label><input name="location_name" value="${prefill.location_name || ''}"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+        <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Job</button>
+      </div>
+    </form>
+  `);
+
+  overlay.querySelector('#create-job-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = Object.fromEntries(fd.entries());
+    try {
+      const job = await apiFetch('/api/jobs', { method: 'POST', body });
+      overlay.remove();
+      showToast('Job created');
+      navigate(`#/jobs/${job.id}`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 }
 
 // ══════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════
 
+register('/', renderDashboard);
 register('/dashboard', renderDashboard);
 
 window.addEventListener('hashchange', handleRoute);
