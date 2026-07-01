@@ -952,8 +952,51 @@ async function renderMethodTab() {
   };
 }
 
-function renderDocumentTab() {
-  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Document — Coming in next task.</p></div>`;
+async function renderDocumentTab() {
+  let docs = await apiFetch(`/api/documents/job/${_currentJobId}`);
+
+  function renderDocList() {
+    document.getElementById('doc-list').innerHTML = docs.length
+      ? docs.map(d => `
+        <tr>
+          <td>v${d.version}</td>
+          <td>${fmtDate(d.created_at)}</td>
+          <td>
+            <a href="/api/documents/${d.id}/html" target="_blank" class="btn btn-secondary btn-sm">Open for Print</a>
+          </td>
+        </tr>`).join('')
+      : `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">No documents generated yet.</td></tr>`;
+  }
+
+  document.getElementById('tab-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2>RAMS Documents</h2>
+      <button class="btn btn-primary" id="btn-generate-doc">Generate RAMS</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin-bottom:20px">
+      Generate snapshot → Open for Print → Print → Save as PDF (⌘P in Chrome/Safari)
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Version</th><th>Generated</th><th>Action</th></tr></thead>
+        <tbody id="doc-list"></tbody>
+      </table>
+    </div>
+  `;
+
+  renderDocList();
+
+  document.getElementById('btn-generate-doc').addEventListener('click', async e => {
+    e.target.disabled = true;
+    e.target.innerHTML = '<span class="spinner"></span> Generating…';
+    try {
+      const doc = await apiFetch('/api/documents', { method: 'POST', body: { job_id: _currentJobId } });
+      docs.unshift(doc);
+      renderDocList();
+      showToast(`RAMS v${doc.version} generated — click Open for Print`);
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { e.target.disabled = false; e.target.textContent = 'Generate RAMS'; }
+  });
 }
 
 // ══════════════════════════════════════════════
