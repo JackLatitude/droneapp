@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const router = Router();
+const hospitals = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../knowledge/uk-hospitals.json'), 'utf8'));
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -12,10 +14,6 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function loadHospitals() {
-  return JSON.parse(readFileSync(join(__dirname, '../../knowledge/uk-hospitals.json'), 'utf8'));
 }
 
 router.get('/', async (req, res) => {
@@ -29,7 +27,6 @@ router.get('/', async (req, res) => {
   const results = { aerodromes: [], airspaceZones: [], hospitals: [] };
 
   // NHS hospitals within radius
-  const hospitals = loadHospitals();
   results.hospitals = hospitals
     .map(h => ({ ...h, type: 'HOSPITAL', distance_km: haversineKm(latF, lngF, h.lat, h.lng) }))
     .filter(h => h.distance_km <= radiusF)
@@ -38,7 +35,6 @@ router.get('/', async (req, res) => {
   // OpenAIP — aerodromes
   if (process.env.OPENAIP_API_KEY) {
     try {
-      const { default: fetch } = await import('node-fetch');
       const url = `https://api.openaip.net/api/airports?lat=${latF}&lng=${lngF}&dist=${radiusF}&apiKey=${process.env.OPENAIP_API_KEY}`;
       const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (resp.ok) {
@@ -60,7 +56,6 @@ router.get('/', async (req, res) => {
 
     // OpenAIP — airspace zones
     try {
-      const { default: fetch } = await import('node-fetch');
       const url = `https://api.openaip.net/api/airspaces?lat=${latF}&lng=${lngF}&dist=${radiusF}&apiKey=${process.env.OPENAIP_API_KEY}`;
       const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (resp.ok) {
