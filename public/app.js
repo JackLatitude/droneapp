@@ -232,6 +232,76 @@ async function renderDashboard() {
 }
 
 // ══════════════════════════════════════════════
+// SCREEN: Jobs List
+// ══════════════════════════════════════════════
+
+async function renderJobsList(params) {
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
+  const jobs = await apiFetch('/api/jobs');
+
+  let filtered = jobs;
+  let statusFilter = '';
+  let countryFilter = '';
+
+  function applyFilters() {
+    filtered = jobs.filter(j =>
+      (!statusFilter || j.status === statusFilter) &&
+      (!countryFilter || j.country === countryFilter)
+    );
+    renderTable();
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('jobs-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = filtered.length
+      ? filtered.map(j => `
+        <tr onclick="navigate('#/jobs/${j.id}')">
+          <td>${fmtDate(j.start_date)}</td>
+          <td>${j.title}</td>
+          <td>${j.client_name || '—'}</td>
+          <td>${j.location_name || '—'}</td>
+          <td>${j.country?.toUpperCase() || '—'}</td>
+          <td>${statusChip(j.status)}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No jobs match filters.</td></tr>`;
+  }
+
+  app.innerHTML = `
+    <div class="screen-header">
+      <div class="screen-header-left">
+        <h1>Jobs</h1>
+        <p>${jobs.length} total</p>
+      </div>
+      <button class="btn btn-primary" onclick="openCreateJobModal()">+ New Job</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px">
+      <select id="filter-status" style="width:160px">
+        <option value="">All statuses</option>
+        <option>new</option><option>scoped</option><option>planned</option>
+        <option>work_complete</option><option>complete</option><option>on_hold</option><option>aborted</option>
+      </select>
+      <select id="filter-country" style="width:160px">
+        <option value="">All countries</option>
+        <option value="uk">UK</option><option value="us">US</option>
+        <option value="ca">Canada</option><option value="ie">Ireland</option><option value="at">Austria</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Job</th><th>Client</th><th>Location</th><th>Country</th><th>Status</th></tr></thead>
+        <tbody id="jobs-tbody"></tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('filter-status').addEventListener('change', e => { statusFilter = e.target.value; applyFilters(); });
+  document.getElementById('filter-country').addEventListener('change', e => { countryFilter = e.target.value; applyFilters(); });
+  applyFilters();
+}
+
+// ══════════════════════════════════════════════
 // MODAL: CREATE JOB
 // ══════════════════════════════════════════════
 
@@ -299,6 +369,7 @@ async function openCreateJobModal(prefill = {}) {
 
 register('/', renderDashboard);
 register('/dashboard', renderDashboard);
+register('/jobs', renderJobsList);
 
 window.addEventListener('hashchange', handleRoute);
 window.addEventListener('DOMContentLoaded', () => {
