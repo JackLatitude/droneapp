@@ -4,9 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Drone Ops</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Drone Operations Planning</h1>
-  <p>Server is running.</p>
+
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-mark">◈</span>
+    <span class="logo-text">DRONE OPS</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#/dashboard" data-nav="dashboard">Dashboard</a></li>
+    <li><a href="#/jobs" data-nav="jobs">Jobs</a></li>
+    <li><a href="#/clients" data-nav="clients">Clients</a></li>
+    <li><a href="#/countries" data-nav="countries">Countries</a></li>
+    <li><a href="#/settings" data-nav="settings">Settings</a></li>
+  </ul>
+  <div class="sidebar-footer">
+    <span id="sidebar-status" class="status-dot ok"></span>
+    <span class="muted" id="sidebar-version">v1.0</span>
+  </div>
+</nav>
+
+<main id="app">
+  <div class="loading-screen">
+    <span class="loading-icon">◈</span>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
