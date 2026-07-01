@@ -103,6 +103,9 @@ export function initDb(db) {
     );
   `);
 
+  // Migration: add method_statement column if not present
+  try { db.exec('ALTER TABLE jobs ADD COLUMN method_statement TEXT'); } catch {}
+
   // Seed settings row if absent
   const hasSettings = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!hasSettings) {
