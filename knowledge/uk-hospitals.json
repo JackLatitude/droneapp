@@ -1,0 +1,7 @@
+[
+  { "name": "Royal London Hospital", "lat": 51.5188, "lng": -0.0597, "phone": "020 7377 7000" },
+  { "name": "St George's Hospital", "lat": 51.4272, "lng": -0.1768, "phone": "020 8672 1255" },
+  { "name": "King's College Hospital", "lat": 51.4679, "lng": -0.0938, "phone": "020 3299 9000" },
+  { "name": "St Thomas' Hospital", "lat": 51.4990, "lng": -0.1186, "phone": "020 7188 7188" },
+  { "name": "University College Hospital", "lat": 51.5247, "lng": -0.1349, "phone": "020 3456 7890" }
+]
