@@ -106,6 +106,9 @@ export function initDb(db) {
   // Migration: add method_statement column if not present
   try { db.exec('ALTER TABLE jobs ADD COLUMN method_statement TEXT'); } catch {}
 
+  // Migration: add mapbox_token to settings if not present
+  try { db.exec('ALTER TABLE settings ADD COLUMN mapbox_token TEXT'); } catch {}
+
   // Seed settings row if absent
   const hasSettings = db.prepare('SELECT id FROM settings WHERE id = 1').get();
   if (!hasSettings) {

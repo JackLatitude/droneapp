@@ -582,8 +582,184 @@ async function renderPermissionsTab() {
   };
 }
 
-function renderMapTab() {
-  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Map & Survey — Coming in next task.</p></div>`;
+async function renderMapTab() {
+  const j = _currentJob;
+  const settings = await apiFetch('/api/settings');
+
+  document.getElementById('tab-content').innerHTML = `
+    <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center">
+      <h2 style="margin:0">Map &amp; Survey</h2>
+      <button class="btn btn-secondary btn-sm" id="btn-fetch-airspace">Fetch Airspace</button>
+      <button class="btn btn-secondary btn-sm" id="btn-gen-ground-risk">Generate Ground Risk</button>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-polygon">Clear Polygon</button>
+    </div>
+    <div id="map-container"></div>
+    <div style="display:flex;gap:8px;margin:12px 0">
+      <span class="muted" style="font-size:11px">Draw a polygon on the map to define the area of operations.</span>
+    </div>
+
+    <div id="airspace-section" style="display:none">
+      <h2>Airspace Users</h2>
+      <div id="airspace-table"></div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="window.saveAirspaceUsers()">Save Airspace Users</button>
+    </div>
+
+    <div id="ground-risk-section" style="margin-top:20px">
+      <h2>Ground Risk Assessment</h2>
+      <textarea id="ground-risk-text" rows="8" style="width:100%">${j.ground_risk_summary || ''}</textarea>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="window.saveGroundRisk()">Save Ground Risk</button>
+    </div>
+  `;
+
+  // Init Mapbox
+  mapboxgl.accessToken = settings.mapbox_token || '';
+  const center = (j.lng && j.lat) ? [j.lng, j.lat] : [-0.1278, 51.5074];
+
+  const map = new mapboxgl.Map({
+    container: 'map-container',
+    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+    center,
+    zoom: j.lat ? 14 : 10,
+  });
+
+  // Draw polygon
+  let drawnPolygon = j.area_of_operations || null;
+  let drawingPoints = [];
+  let previewLayer = false;
+
+  function renderPolygon() {
+    if (map.getSource('aop')) {
+      map.getSource('aop').setData({ type: 'Feature', geometry: drawnPolygon || { type: 'Polygon', coordinates: [[]] } });
+      return;
+    }
+    map.addSource('aop', { type: 'geojson', data: { type: 'Feature', geometry: drawnPolygon || { type: 'Polygon', coordinates: [[]] } } });
+    map.addLayer({ id: 'aop-fill', type: 'fill', source: 'aop', paint: { 'fill-color': '#e8ff47', 'fill-opacity': 0.15 } });
+    map.addLayer({ id: 'aop-line', type: 'line', source: 'aop', paint: { 'line-color': '#e8ff47', 'line-width': 2 } });
+    previewLayer = true;
+  }
+
+  map.on('load', () => {
+    if (drawnPolygon) renderPolygon();
+
+    map.on('click', e => {
+      drawingPoints.push([e.lngLat.lng, e.lngLat.lat]);
+      if (drawingPoints.length >= 3) {
+        drawnPolygon = { type: 'Polygon', coordinates: [[...drawingPoints, drawingPoints[0]]] };
+        if (!previewLayer) renderPolygon();
+        else map.getSource('aop').setData({ type: 'Feature', geometry: drawnPolygon });
+      }
+    });
+  });
+
+  document.getElementById('btn-clear-polygon').addEventListener('click', () => {
+    drawingPoints = [];
+    drawnPolygon = null;
+    if (map.getSource('aop')) {
+      map.getSource('aop').setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[]] } });
+    }
+  });
+
+  // Save polygon to job and generate static image URL
+  async function savePolygonToJob() {
+    if (!drawnPolygon) return;
+    const staticUrl = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/geojson(${encodeURIComponent(JSON.stringify({ type: 'Feature', geometry: drawnPolygon, properties: {} }))})/${center[0]},${center[1]},13/800x400@2x?access_token=${mapboxgl.accessToken}`;
+    _currentJob = await apiFetch(`/api/jobs/${_currentJobId}`, {
+      method: 'PUT',
+      body: { ..._currentJob, area_of_operations: drawnPolygon, map_static_image_url: staticUrl },
+    });
+    showToast('Area of operations saved');
+  }
+
+  // Fetch airspace
+  let airspaceUsers = Array.isArray(j.airspace_users) ? j.airspace_users : [];
+
+  document.getElementById('btn-fetch-airspace').addEventListener('click', async e => {
+    if (!j.lat || !j.lng) { showToast('Set lat/lng in Overview tab first', 'error'); return; }
+    await savePolygonToJob();
+    e.target.disabled = true;
+    e.target.innerHTML = '<span class="spinner"></span> Fetching…';
+    try {
+      const airspaceData = await apiFetch(`/api/airspace?lat=${j.lat}&lng=${j.lng}&radius_km=20`);
+      const aeroRows = (airspaceData.aerodromes || []).map(a => ({
+        id: a.icao || a.name, name: a.name, type: a.type || 'AERODROME',
+        icao: a.icao, distance_km: a.distance_km, phone: a.phone, notified: false, notes: '', selected: true,
+      }));
+      const hospRows = (airspaceData.hospitals || []).map(h => ({
+        id: `HOSP-${h.name}`, name: h.name, type: 'HOSPITAL',
+        icao: null, distance_km: h.distance_km, phone: h.phone, notified: false, notes: '', selected: true,
+      }));
+      airspaceUsers = [...aeroRows, ...hospRows];
+      renderAirspaceTable();
+      document.getElementById('airspace-section').style.display = '';
+      showToast(`Found ${airspaceUsers.length} airspace users`);
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { e.target.disabled = false; e.target.textContent = 'Fetch Airspace'; }
+  });
+
+  function renderAirspaceTable() {
+    document.getElementById('airspace-table').innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>✓</th><th>Name</th><th>Type</th><th>ICAO</th><th>Distance</th><th>Phone</th><th>Notified</th></tr></thead>
+          <tbody>${airspaceUsers.map((a, i) => `
+            <tr>
+              <td><input type="checkbox" ${a.selected !== false ? 'checked' : ''} onchange="window.toggleAirspaceUser(${i}, this.checked)"></td>
+              <td>${a.name}</td><td>${a.type}</td><td>${a.icao || '—'}</td>
+              <td>${a.distance_km != null ? a.distance_km.toFixed(1) : '—'} km</td><td>${a.phone || '—'}</td>
+              <td><input type="checkbox" ${a.notified ? 'checked' : ''} onchange="window.setAirspaceNotified(${i}, this.checked)"></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  window.toggleAirspaceUser = (i, checked) => { airspaceUsers[i].selected = checked; };
+  window.setAirspaceNotified = (i, checked) => { airspaceUsers[i].notified = checked; };
+
+  window.saveAirspaceUsers = async () => {
+    const selected = airspaceUsers.filter(a => a.selected !== false);
+    try {
+      _currentJob = await apiFetch(`/api/jobs/${_currentJobId}`, {
+        method: 'PUT',
+        body: { ..._currentJob, airspace_users: selected },
+      });
+      showToast('Airspace users saved');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  // Generate ground risk
+  document.getElementById('btn-gen-ground-risk').addEventListener('click', async e => {
+    await savePolygonToJob();
+    e.target.disabled = true;
+    e.target.innerHTML = '<span class="spinner"></span> Drafting…';
+    try {
+      const result = await apiFetch('/api/ai/ground-risk', {
+        method: 'POST',
+        body: {
+          polygon: drawnPolygon,
+          airspace_class: _currentJob.airspace_class,
+          location_name: _currentJob.location_name,
+          lat: _currentJob.lat,
+          lng: _currentJob.lng,
+        },
+      });
+      document.getElementById('ground-risk-text').value = result.ground_risk_summary || '';
+      _currentJob.ground_risk_summary = result.ground_risk_summary;
+      showToast('Ground risk drafted');
+    } catch (err) { showToast(err.message, 'error'); }
+    finally { e.target.disabled = false; e.target.textContent = 'Generate Ground Risk'; }
+  });
+
+  window.saveGroundRisk = async () => {
+    const text = document.getElementById('ground-risk-text').value;
+    try {
+      _currentJob = await apiFetch(`/api/jobs/${_currentJobId}`, {
+        method: 'PUT',
+        body: { ..._currentJob, ground_risk_summary: text },
+      });
+      showToast('Ground risk saved');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
 }
 
 function renderRisksTab() {
