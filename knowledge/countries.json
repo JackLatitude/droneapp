@@ -1,0 +1,129 @@
+{
+  "uk": {
+    "name": "United Kingdom",
+    "regulatory_body": "CAA",
+    "framework": "UK Reg (PDRA01/STS)",
+    "jack_credentials": ["PDRA01", "GVC", "Flyer ID"],
+    "permissions": [
+      {
+        "label": "Drone Assist / NATS notification",
+        "lead_time_days": 0,
+        "authority": "NATS / Drone Assist app",
+        "required_for": "all",
+        "notes": "Check for NOTAMs and FRZs"
+      },
+      {
+        "label": "Location / landowner permission",
+        "lead_time_days": 7,
+        "authority": "Landowner / Location Manager",
+        "required_for": "all",
+        "notes": ""
+      },
+      {
+        "label": "Insurance confirmed",
+        "lead_time_days": 0,
+        "authority": "Internal",
+        "required_for": "all",
+        "notes": "Public liability minimum £5M"
+      }
+    ],
+    "contacts": [],
+    "notes": "Operating under PDRA01 covers most film/TV work in populated areas."
+  },
+  "us": {
+    "name": "United States",
+    "regulatory_body": "FAA",
+    "framework": "Part 107",
+    "jack_credentials": ["FAA Part 107"],
+    "permissions": [
+      {
+        "label": "FAA LAANC authorisation",
+        "lead_time_days": 0,
+        "authority": "FAA via Aloft/DroneZone",
+        "required_for": "controlled airspace",
+        "notes": "Instant for most locations via LAANC"
+      },
+      {
+        "label": "Location / landowner permission",
+        "lead_time_days": 14,
+        "authority": "Landowner / Permit Office",
+        "required_for": "all",
+        "notes": ""
+      }
+    ],
+    "contacts": [],
+    "notes": "Jack holds FAA Part 107 Remote Pilot Certificate."
+  },
+  "ca": {
+    "name": "Canada",
+    "regulatory_body": "Transport Canada",
+    "framework": "CARs Part IX",
+    "jack_credentials": [],
+    "permissions": [
+      {
+        "label": "SFOC (Special Flight Operations Certificate)",
+        "lead_time_days": 20,
+        "authority": "Transport Canada",
+        "required_for": "controlled airspace or complex ops",
+        "notes": "Apply via Nav Canada or Transport Canada portal"
+      },
+      {
+        "label": "Location / landowner permission",
+        "lead_time_days": 14,
+        "authority": "Landowner / National Parks",
+        "required_for": "all",
+        "notes": ""
+      }
+    ],
+    "contacts": [],
+    "notes": "Foreign operators require Transport Canada registration and may need SFOC."
+  },
+  "ie": {
+    "name": "Ireland",
+    "regulatory_body": "IAA",
+    "framework": "EU Reg (Open/Specific Category)",
+    "jack_credentials": ["Irish IAA Open A2"],
+    "permissions": [
+      {
+        "label": "IAA UAS Operator Registration",
+        "lead_time_days": 0,
+        "authority": "Irish Aviation Authority",
+        "required_for": "all",
+        "notes": "Jack holds IRL-RP-000008146ZAC"
+      },
+      {
+        "label": "Location / landowner permission",
+        "lead_time_days": 7,
+        "authority": "Landowner",
+        "required_for": "all",
+        "notes": ""
+      }
+    ],
+    "contacts": [],
+    "notes": "EU Open Category rules apply. Jack's IAA Open A2 covers most ops."
+  },
+  "at": {
+    "name": "Austria",
+    "regulatory_body": "Austro Control",
+    "framework": "EU Reg (Open/Specific Category)",
+    "jack_credentials": [],
+    "permissions": [
+      {
+        "label": "EU UAS Operator Registration (EASA)",
+        "lead_time_days": 7,
+        "authority": "Austro Control",
+        "required_for": "all",
+        "notes": "Register in Austria's national registry"
+      },
+      {
+        "label": "Location / airspace authorisation",
+        "lead_time_days": 14,
+        "authority": "Austro Control",
+        "required_for": "controlled airspace",
+        "notes": ""
+      }
+    ],
+    "contacts": [],
+    "notes": "Vienna ops — confirm with Austro Control for specific areas."
+  }
+}
