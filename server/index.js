@@ -11,6 +11,7 @@ import countriesRouter from './routes/countries.js';
 import airspaceRouter from './routes/airspace.js';
 import aiRouter from './routes/ai.js';
 import documentsRouter from './routes/documents.js';
+import aircraftRouter from './routes/aircraft.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,7 @@ app.use('/api/countries', countriesRouter);
 app.use('/api/airspace', airspaceRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/documents', documentsRouter);
+app.use('/api/aircraft', aircraftRouter);
 
 app.use(express.static(join(__dirname, '../public')));
 app.use((_req, res) => {

@@ -364,12 +364,248 @@ async function openCreateJobModal(prefill = {}) {
 }
 
 // ══════════════════════════════════════════════
+// SHARED JOB STATE
+// ══════════════════════════════════════════════
+
+let _currentJob = null;
+let _currentJobId = null;
+
+// ══════════════════════════════════════════════
+// SCREEN: JOB DETAIL
+// ══════════════════════════════════════════════
+
+async function renderJobDetail({ id }) {
+  _currentJobId = id;
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
+  _currentJob = await apiFetch(`/api/jobs/${id}`);
+
+  const TABS = [
+    { key: 'overview',    label: 'Overview' },
+    { key: 'permissions', label: 'Permissions' },
+    { key: 'map',         label: 'Map & Survey' },
+    { key: 'risks',       label: 'Risks' },
+    { key: 'method',      label: 'Method Statement' },
+    { key: 'document',    label: 'Document' },
+  ];
+
+  app.innerHTML = `
+    <div class="screen-header">
+      <div class="screen-header-left">
+        <a href="#/jobs" style="color:var(--muted);text-decoration:none;font-size:11px">← Jobs</a>
+        <h1 style="margin-top:4px">${_currentJob.title}</h1>
+        <p>${statusChip(_currentJob.status)} &nbsp; ${_currentJob.client_name || 'No client'} &nbsp; ${fmtDate(_currentJob.start_date)}</p>
+      </div>
+    </div>
+    <div class="tabs">
+      ${TABS.map(t => `<button class="tab-btn" data-tab="${t.key}">${t.label}</button>`).join('')}
+    </div>
+    <div id="tab-content"></div>
+  `;
+
+  const tabHandlers = {
+    overview:    renderOverviewTab,
+    permissions: renderPermissionsTab,
+    map:         renderMapTab,
+    risks:       renderRisksTab,
+    method:      renderMethodTab,
+    document:    renderDocumentTab,
+  };
+
+  const savedTab = sessionStorage.getItem(`job-tab-${id}`) || 'overview';
+
+  async function switchTab(key) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+    sessionStorage.setItem(`job-tab-${id}`, key);
+    document.getElementById('tab-content').innerHTML = `<div class="loading-screen" style="min-height:200px"><span class="loading-icon">◈</span></div>`;
+    await tabHandlers[key]();
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  await switchTab(savedTab);
+}
+
+async function renderOverviewTab() {
+  const j = _currentJob;
+  const [clients, settings] = await Promise.all([apiFetch('/api/clients'), apiFetch('/api/settings')]);
+  const aircraft = await apiFetch('/api/aircraft').catch(() => []);
+
+  const clientOpts = clients.map(c => `<option value="${c.id}" ${j.client_id===c.id?'selected':''}>${c.name}</option>`).join('');
+  const aircraftOpts = aircraft.map(a => `<option value="${a.id}" ${j.aircraft_id===a.id?'selected':''}>${a.make} ${a.model}</option>`).join('');
+
+  document.getElementById('tab-content').innerHTML = `
+    <form id="overview-form">
+      <div class="form-row form-row-2">
+        <div class="form-group"><label>Job Title *</label><input name="title" value="${j.title || ''}" required></div>
+        <div class="form-group"><label>Status</label>
+          <select name="status">
+            ${['new','scoped','planned','work_complete','complete','on_hold','aborted'].map(s =>
+              `<option value="${s}" ${j.status===s?'selected':''}>${s.replace('_',' ')}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group"><label>Client</label>
+          <select name="client_id"><option value="">— No client —</option>${clientOpts}</select>
+        </div>
+        <div class="form-group"><label>Operation Type</label>
+          <select name="operation_type">
+            <option value="UK_PDRA01" ${j.operation_type==='UK_PDRA01'?'selected':''}>UK PDRA01</option>
+            <option value="UK_STS" ${j.operation_type==='UK_STS'?'selected':''}>UK STS</option>
+            <option value="INTERNATIONAL" ${j.operation_type==='INTERNATIONAL'?'selected':''}>International</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row form-row-3">
+        <div class="form-group"><label>Start Date</label><input type="date" name="start_date" value="${j.start_date||''}"></div>
+        <div class="form-group"><label>Start Time</label><input type="time" name="start_time" value="${j.start_time||''}"></div>
+        <div class="form-group"><label>End Time</label><input type="time" name="end_time" value="${j.end_time||''}"></div>
+      </div>
+      <div class="form-group"><label>Location Name</label><input name="location_name" value="${j.location_name||''}"></div>
+      <div class="form-group"><label>Location Address</label><input name="location_address" value="${j.location_address||''}"></div>
+      <div class="form-row form-row-3">
+        <div class="form-group"><label>Latitude</label><input type="number" step="any" name="lat" value="${j.lat||''}"></div>
+        <div class="form-group"><label>Longitude</label><input type="number" step="any" name="lng" value="${j.lng||''}"></div>
+        <div class="form-group"><label>Elevation (ft)</label><input type="number" name="elevation_ft" value="${j.elevation_ft||''}"></div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group"><label>Airspace Class</label>
+          <select name="airspace_class">
+            ${['','A','B','C','D','E','F','G'].map(c => `<option value="${c}" ${j.airspace_class===c?'selected':''}>${c||'Unknown'}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Aircraft</label>
+          <select name="aircraft_id"><option value="">— Select —</option>${aircraftOpts}</select>
+        </div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea name="description" rows="3">${j.description||''}</textarea></div>
+      <div class="form-group"><label>Notes</label><textarea name="notes" rows="2">${j.notes||''}</textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Delete Job</button>
+      </div>
+    </form>
+  `;
+
+  document.getElementById('overview-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = Object.fromEntries(fd.entries());
+    // Preserve JSON fields that come from other tabs
+    body.airspace_users        = _currentJob.airspace_users;
+    body.area_of_operations    = _currentJob.area_of_operations;
+    body.ground_risk_summary   = _currentJob.ground_risk_summary;
+    body.map_static_image_url  = _currentJob.map_static_image_url;
+    try {
+      _currentJob = await apiFetch(`/api/jobs/${_currentJobId}`, { method: 'PUT', body });
+      showToast('Saved');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+async function deleteJob(id) {
+  if (!confirm('Delete this job? This cannot be undone.')) return;
+  try {
+    await apiFetch(`/api/jobs/${id}`, { method: 'DELETE' });
+    showToast('Job deleted');
+    navigate('#/jobs');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function renderPermissionsTab() {
+  let perms = await apiFetch(`/api/jobs/${_currentJobId}/permissions`);
+
+  function renderPerms() {
+    document.getElementById('perms-list').innerHTML = perms.map(p => `
+      <div class="perm-item" data-id="${p.id}">
+        <select class="perm-status-select" data-field="status">
+          <option value="pending" ${p.status==='pending'?'selected':''}>Pending</option>
+          <option value="obtained" ${p.status==='obtained'?'selected':''}>Obtained</option>
+          <option value="not_required" ${p.status==='not_required'?'selected':''}>Not Required</option>
+        </select>
+        <div class="perm-label">
+          <div>${p.label}</div>
+          <div class="perm-authority">${p.authority || ''}</div>
+        </div>
+        <input placeholder="Contact" style="width:140px" value="${p.contact||''}" data-field="contact">
+        <input type="date" style="width:130px" value="${p.deadline||''}" data-field="deadline">
+        <button class="btn btn-ghost btn-sm" onclick="deletePerm('${p.id}')">✕</button>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('tab-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2>Permissions Checklist</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="addPermItem()">+ Add Item</button>
+        <button class="btn btn-primary btn-sm" onclick="savePerms()">Save All</button>
+      </div>
+    </div>
+    <div id="perms-list"></div>
+  `;
+  renderPerms();
+
+  window.savePerms = async () => {
+    const items = [...document.querySelectorAll('.perm-item')].map(el => ({
+      id: el.dataset.id,
+      status: el.querySelector('[data-field="status"]').value,
+      contact: el.querySelector('[data-field="contact"]').value,
+      deadline: el.querySelector('[data-field="deadline"]').value,
+      notes: '',
+    }));
+    try {
+      perms = await apiFetch(`/api/jobs/${_currentJobId}/permissions`, { method: 'PUT', body: items });
+      showToast('Permissions saved');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  window.addPermItem = async () => {
+    const label = prompt('Permission item label:');
+    if (!label) return;
+    try {
+      const p = await apiFetch(`/api/jobs/${_currentJobId}/permissions`, { method: 'POST', body: { label } });
+      perms.push(p);
+      renderPerms();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  window.deletePerm = async (permId) => {
+    try {
+      await apiFetch(`/api/jobs/${_currentJobId}/permissions/${permId}`, { method: 'DELETE' });
+      perms = perms.filter(p => p.id !== permId);
+      renderPerms();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+}
+
+function renderMapTab() {
+  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Map & Survey — Coming in next task.</p></div>`;
+}
+
+function renderRisksTab() {
+  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Risks — Coming in next task.</p></div>`;
+}
+
+function renderMethodTab() {
+  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Method Statement — Coming in next task.</p></div>`;
+}
+
+function renderDocumentTab() {
+  document.getElementById('tab-content').innerHTML = `<div class="empty-state"><p>Document — Coming in next task.</p></div>`;
+}
+
+// ══════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════
 
 register('/', renderDashboard);
 register('/dashboard', renderDashboard);
 register('/jobs', renderJobsList);
+register('/jobs/:id', renderJobDetail);
 
 window.addEventListener('hashchange', handleRoute);
 window.addEventListener('DOMContentLoaded', () => {
