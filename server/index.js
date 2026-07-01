@@ -9,6 +9,7 @@ import jobRisksRouter from './routes/job-risks.js';
 import settingsRouter from './routes/settings.js';
 import countriesRouter from './routes/countries.js';
 import airspaceRouter from './routes/airspace.js';
+import aiRouter from './routes/ai.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -26,6 +27,7 @@ app.use('/api/jobs/:id/risks', jobRisksRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/countries', countriesRouter);
 app.use('/api/airspace', airspaceRouter);
+app.use('/api/ai', aiRouter);
 
 app.use(express.static(join(__dirname, '../public')));
 app.use((_req, res) => {
