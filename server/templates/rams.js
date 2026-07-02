@@ -1,3 +1,4 @@
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function riskScore(s, p) { return (s || 0) + (p || 0); }
 function riskClass(score) {
   if (score <= 5) return 'low';
@@ -40,12 +41,12 @@ export function generateRams(job, risks, airspaceUsers, settings) {
     return `
     <tr>
       <td>${i + 1}</td>
-      <td><strong>${r.hazard || ''}</strong><br><small>${r.cause || ''}</small></td>
-      <td>${r.consequence || ''}</td>
+      <td><strong>${esc(r.hazard)}</strong><br><small>${esc(r.cause)}</small></td>
+      <td>${esc(r.consequence)}</td>
       <td>${r.severity || ''}</td>
       <td>${r.probability || ''}</td>
       <td class="${riskClass(initScore)}">${riskLabel(initScore)} (${initScore})</td>
-      <td>${r.mitigations || ''}</td>
+      <td>${esc(r.mitigations)}</td>
       <td>${r.residual_severity || ''}</td>
       <td>${r.residual_probability || ''}</td>
       <td class="${riskClass(residScore)}">${riskLabel(residScore)} (${residScore})</td>
@@ -54,13 +55,13 @@ export function generateRams(job, risks, airspaceUsers, settings) {
 
   const airspaceRows = (airspaceUsers || []).filter(a => a.notified !== false).map(a => `
     <tr>
-      <td>${a.name || ''}</td>
-      <td>${a.type || ''}</td>
-      <td>${a.icao || '—'}</td>
+      <td>${esc(a.name)}</td>
+      <td>${esc(a.type)}</td>
+      <td>${esc(a.icao || '—')}</td>
       <td>${a.distance_km ? a.distance_km.toFixed(1) + ' km' : '—'}</td>
-      <td>${a.phone || '—'}</td>
+      <td>${esc(a.phone || '—')}</td>
       <td>${a.notified ? 'Yes' : 'Pending'}</td>
-      <td>${a.notes || ''}</td>
+      <td>${esc(a.notes)}</td>
     </tr>`).join('');
 
   const mapImg = job.map_static_image_url
@@ -71,7 +72,7 @@ export function generateRams(job, risks, airspaceUsers, settings) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>RAMS — ${job.title || 'Untitled'}</title>
+<title>RAMS — ${esc(job.title || 'Untitled')}</title>
 <style>
   :root { --accent: ${accent}; --dark: ${accentDark}; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -117,9 +118,9 @@ export function generateRams(job, risks, airspaceUsers, settings) {
 
 <!-- COVER PAGE -->
 <div class="cover">
-  <div class="cover-badge">RAMS — ${job.operation_type || 'UK_PDRA01'}</div>
-  <h1>${job.title || 'Untitled Operation'}</h1>
-  <p class="subtitle">${job.location_name || 'Location TBC'}</p>
+  <div class="cover-badge">RAMS — ${esc(job.operation_type || 'UK_PDRA01')}</div>
+  <h1>${esc(job.title || 'Untitled Operation')}</h1>
+  <p class="subtitle">${esc(job.location_name || 'Location TBC')}</p>
   <div class="cover-grid">
     <div>
       <div class="label">Date</div>
@@ -135,11 +136,11 @@ export function generateRams(job, risks, airspaceUsers, settings) {
     </div>
     <div>
       <div class="label">Remote Pilot</div>
-      <div class="value">${settings?.name || 'Jack Downes'}</div>
+      <div class="value">${esc(settings?.name || 'Jack Downes')}</div>
     </div>
     <div>
       <div class="label">Operator ID</div>
-      <div class="value">${settings?.operator_id || ''}</div>
+      <div class="value">${esc(settings?.operator_id || '')}</div>
     </div>
     <div>
       <div class="label">Document Version</div>
@@ -152,14 +153,14 @@ export function generateRams(job, risks, airspaceUsers, settings) {
 <div class="page">
 
 <h2>1. Operation Overview</h2>
-<p>${job.description || 'No description provided.'}</p>
+<p>${esc(job.description || 'No description provided.')}</p>
 
 <h2>2. Location &amp; Environment</h2>
 <div class="two-col">
   <div>
     <h3>Site Details</h3>
     <table>
-      <tr><th>Address</th><td>${job.location_address || '—'}</td></tr>
+      <tr><th>Address</th><td>${esc(job.location_address || '—')}</td></tr>
       <tr><th>Coordinates</th><td>${job.lat ? `${job.lat}, ${job.lng}` : '—'}</td></tr>
       <tr><th>Elevation</th><td>${job.elevation_ft ? job.elevation_ft + ' ft AMSL' : '—'}</td></tr>
       <tr><th>Airspace Class</th><td>${job.airspace_class || '—'}</td></tr>
@@ -186,16 +187,16 @@ ${mapImg}
 <h2>5. Aircraft &amp; Credentials</h2>
 <table>
   <tr><th>Aircraft</th><td>${job.aircraft_model || '—'}</td></tr>
-  <tr><th>Remote Pilot</th><td>${settings?.name || 'Jack Downes'}</td></tr>
-  <tr><th>Flyer ID</th><td>${settings?.flyer_id || '—'} (exp. ${settings?.flyer_id_expiry || '—'})</td></tr>
-  <tr><th>PDRA01 Ref</th><td>${settings?.pdra01_ref || '—'} (exp. ${settings?.pdra01_expiry || '—'})</td></tr>
-  <tr><th>GVC</th><td>${settings?.gvc_ref || '—'}</td></tr>
-  <tr><th>FAA Part 107</th><td>${settings?.faa_part107_ref || '—'}</td></tr>
-  <tr><th>Operator ID</th><td>${settings?.operator_id || '—'}</td></tr>
+  <tr><th>Remote Pilot</th><td>${esc(settings?.name || 'Jack Downes')}</td></tr>
+  <tr><th>Flyer ID</th><td>${esc(settings?.flyer_id || '—')} (exp. ${esc(settings?.flyer_id_expiry || '—')})</td></tr>
+  <tr><th>PDRA01 Ref</th><td>${esc(settings?.pdra01_ref || '—')} (exp. ${esc(settings?.pdra01_expiry || '—')})</td></tr>
+  <tr><th>GVC</th><td>${esc(settings?.gvc_ref || '—')}</td></tr>
+  <tr><th>FAA Part 107</th><td>${esc(settings?.faa_part107_ref || '—')}</td></tr>
+  <tr><th>Operator ID</th><td>${esc(settings?.operator_id || '—')}</td></tr>
 </table>
 
 <h2>6. Method Statement</h2>
-${job.method_statement ? job.method_statement.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').split('\n').map(l => l.startsWith('- ') ? `<li>${l.slice(2)}</li>` : `<p>${l}</p>`).join('') : '<p>Method statement not yet drafted.</p>'}
+${job.method_statement ? esc(job.method_statement).split('\n').map(l => l.startsWith('- ') ? `<li>${l.slice(2)}</li>` : `<p>${l}</p>`).join('') : '<p>Method statement not yet drafted.</p>'}
 
 <h2>7. Risk Assessment</h2>
 <table>
@@ -250,7 +251,7 @@ ${airspaceRows ? `<table>
 <div class="sign-block">
   <div>
     <p><strong>Remote Pilot</strong></p>
-    <p>${settings?.name || 'Jack Downes'}</p>
+    <p>${esc(settings?.name || 'Jack Downes')}</p>
     <div class="sign-line">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div>
   </div>
   <div>
@@ -261,7 +262,7 @@ ${airspaceRows ? `<table>
 </div>
 
 <div class="doc-meta">
-  Generated: ${new Date().toISOString().split('T')[0]} &nbsp;|&nbsp; Operator ID: ${settings?.operator_id || '—'} &nbsp;|&nbsp; ${job.title || ''}
+  Generated: ${new Date().toISOString().split('T')[0]} &nbsp;|&nbsp; Operator ID: ${esc(settings?.operator_id || '—')} &nbsp;|&nbsp; ${esc(job.title || '')}
 </div>
 
 </div>

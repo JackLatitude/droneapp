@@ -106,7 +106,10 @@ router.put('/:id', (req, res) => {
   `).run(
     title, client_id || null, description || null, status || 'new', operation_type || 'UK_PDRA01', country || 'uk',
     start_date || null, start_time || null, end_time || null, location_name || null, location_address || null,
-    lat || null, lng || null, elevation_ft || null, airspace_class || null,
+    req.body.lat !== undefined ? req.body.lat : null,
+    req.body.lng !== undefined ? req.body.lng : null,
+    req.body.elevation_ft !== undefined ? req.body.elevation_ft : null,
+    airspace_class || null,
     airspace_users ? JSON.stringify(airspace_users) : '[]',
     area_of_operations ? JSON.stringify(area_of_operations) : null,
     map_static_image_url || null, ground_risk_summary || null, aircraft_id || null, notes || null,

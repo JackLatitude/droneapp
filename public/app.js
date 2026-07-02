@@ -515,6 +515,8 @@ async function deleteJob(id) {
     navigate('#/jobs');
   } catch (err) { showToast(err.message, 'error'); }
 }
+window.openCreateJobModal = openCreateJobModal;
+window.deleteJob = deleteJob;
 
 async function renderPermissionsTab() {
   let perms = await apiFetch(`/api/jobs/${_currentJobId}/permissions`);
@@ -771,12 +773,12 @@ async function renderRisksTab() {
       ? risks.map(r => {
           return `
           <tr>
-            <td>${r.hazard || '—'}</td>
-            <td style="font-size:11px;color:var(--muted)">${r.cause || '—'}</td>
-            <td style="font-size:11px">${r.consequence || '—'}</td>
+            <td>${esc(r.hazard || '—')}</td>
+            <td style="font-size:11px;color:var(--muted)">${esc(r.cause || '—')}</td>
+            <td style="font-size:11px">${esc(r.consequence || '—')}</td>
             <td>${r.severity||'—'}</td><td>${r.probability||'—'}</td>
             <td>${riskPill(r.severity, r.probability)}</td>
-            <td style="font-size:11px;max-width:200px">${r.mitigations || '—'}</td>
+            <td style="font-size:11px;max-width:200px">${esc(r.mitigations || '—')}</td>
             <td>${r.residual_severity||'—'}</td><td>${r.residual_probability||'—'}</td>
             <td>${riskPill(r.residual_severity, r.residual_probability)}</td>
             <td>
@@ -844,9 +846,11 @@ async function renderRisksTab() {
 
   window.deleteRisk = async (id) => {
     if (!confirm('Remove this risk row?')) return;
-    await apiFetch(`/api/jobs/${_currentJobId}/risks/${id}`, { method: 'DELETE' });
-    risks = risks.filter(r => r.id !== id);
-    renderTable();
+    try {
+      await apiFetch(`/api/jobs/${_currentJobId}/risks/${id}`, { method: 'DELETE' });
+      risks = risks.filter(r => r.id !== id);
+      renderTable();
+    } catch (err) { showToast('Failed to delete', 'error'); }
   };
 
   window.editRisk = (id) => openRiskModal(risks.find(r => r.id === id));
@@ -1137,7 +1141,7 @@ async function renderCountries() {
               <tr>
                 <td>${esc(p.label)}</td>
                 <td>${esc(p.authority || '—')}</td>
-                <td>${p.lead_time_days > 0 ? p.lead_time_days + ' days' : 'Same day'}</td>
+                <td>${parseInt(p.lead_time_days, 10) > 0 ? parseInt(p.lead_time_days, 10) + ' days' : 'Same day'}</td>
                 <td style="font-size:11px;color:var(--muted)">${esc(p.notes || '')}</td>
               </tr>`).join('')}
           </tbody>

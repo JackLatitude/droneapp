@@ -5,15 +5,16 @@ const router = Router();
 
 router.get('/', (req, res) => {
   const db = getDb();
-  const clients = db.prepare(`
+  const showArchived = req.query.archived === 'true';
+  const rows = db.prepare(`
     SELECT c.*, COUNT(j.id) as job_count
     FROM clients c
     LEFT JOIN jobs j ON j.client_id = c.id
-    WHERE c.archived = 0
+    WHERE c.archived = ?
     GROUP BY c.id
-    ORDER BY c.name ASC
-  `).all();
-  res.json(clients);
+    ORDER BY c.name
+  `).all(showArchived ? 1 : 0);
+  res.json(rows);
 });
 
 router.get('/:id', (req, res) => {
