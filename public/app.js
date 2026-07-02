@@ -1003,24 +1003,32 @@ async function renderClients() {
   const app = document.getElementById('app');
   app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
   let clients = await apiFetch('/api/clients');
+  let showArchived = false;
 
   function renderTable() {
-    document.getElementById('clients-tbody').innerHTML = clients.length
-      ? clients.map(c => `
-        <tr onclick="openClientModal('${c.id}')">
+    const visibleClients = showArchived ? clients : clients.filter(c => c.archived !== 1);
+    document.getElementById('clients-tbody').innerHTML = visibleClients.length
+      ? visibleClients.map(c => `
+        <tr onclick="window.openClientModal('${esc(c.id)}')">
           <td>${esc(c.name)}</td>
           <td>${esc(c.contact_name || '—')}</td>
           <td>${esc(c.contact_email || '—')}</td>
           <td>${esc(c.contact_phone || '—')}</td>
           <td>${c.job_count || 0}</td>
         </tr>`).join('')
-      : `<tr><td colspan="5"><div class="empty-state" style="padding:32px"><p>No clients yet.</p></div></td></tr>`;
+      : `<tr><td colspan="5"><div class="empty-state" style="padding:32px"><p>${showArchived ? 'No archived clients.' : 'No clients yet.'}</p></div></td></tr>`;
   }
 
   app.innerHTML = `
     <div class="screen-header">
-      <div class="screen-header-left"><h1>Clients</h1><p>${clients.length} clients</p></div>
-      <button class="btn btn-primary" onclick="openClientModal(null)">+ New Client</button>
+      <div class="screen-header-left"><h1>Clients</h1><p>${clients.filter(c => c.archived !== 1).length} clients</p></div>
+      <button class="btn btn-primary" onclick="window.openClientModal(null)">+ New Client</button>
+    </div>
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="show-archived-toggle" style="cursor:pointer">
+        <span style="font-size:14px">Show archived</span>
+      </label>
     </div>
     <div class="table-wrap">
       <table>
@@ -1030,6 +1038,23 @@ async function renderClients() {
     </div>
   `;
   renderTable();
+
+  document.getElementById('show-archived-toggle').addEventListener('change', async e => {
+    showArchived = e.target.checked;
+    if (showArchived) {
+      try {
+        const archived = await apiFetch('/api/clients?archived=true').catch(() => apiFetch('/api/clients').then(all => all.filter(c => c.archived === 1)));
+        clients = [...clients.filter(c => c.archived !== 1), ...archived.filter(c => c.archived === 1)];
+      } catch {
+        showToast('Failed to load archived clients', 'error');
+        e.target.checked = false;
+        showArchived = false;
+        renderTable();
+        return;
+      }
+    }
+    renderTable();
+  });
 
   window.openClientModal = async (id) => {
     const client = id ? clients.find(c => c.id === id) : null;
@@ -1050,7 +1075,7 @@ async function renderClients() {
         </div>
         <div class="form-group"><label>Notes</label><textarea name="notes" rows="2">${esc(client?.notes||'')}</textarea></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-          ${client ? `<button type="button" class="btn btn-danger btn-sm" onclick="archiveClient('${client.id}', this.closest('.modal-overlay'))">Archive</button>` : ''}
+          ${client ? `<button type="button" class="btn btn-danger btn-sm" onclick="window.archiveClient('${esc(client.id)}', this.closest('.modal-overlay'))">Archive</button>` : ''}
           <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
           <button type="submit" class="btn btn-primary">${client ? 'Save' : 'Create'}</button>
         </div>
@@ -1077,11 +1102,15 @@ async function renderClients() {
 
   window.archiveClient = async (id, overlayEl) => {
     if (!confirm('Archive this client?')) return;
-    await apiFetch(`/api/clients/${id}`, { method: 'DELETE' });
-    clients = clients.filter(c => c.id !== id);
-    overlayEl.remove();
-    renderTable();
-    showToast('Client archived');
+    try {
+      await apiFetch(`/api/clients/${id}`, { method: 'DELETE' });
+      clients = clients.filter(c => c.id !== id);
+      overlayEl.remove();
+      renderTable();
+      showToast('Client archived');
+    } catch (err) {
+      showToast('Failed to archive client', 'error');
+    }
   };
 }
 
