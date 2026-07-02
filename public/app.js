@@ -999,6 +999,214 @@ async function renderDocumentTab() {
   });
 }
 
+async function renderClients() {
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
+  let clients = await apiFetch('/api/clients');
+
+  function renderTable() {
+    document.getElementById('clients-tbody').innerHTML = clients.length
+      ? clients.map(c => `
+        <tr onclick="openClientModal('${c.id}')">
+          <td>${esc(c.name)}</td>
+          <td>${esc(c.contact_name || '—')}</td>
+          <td>${esc(c.contact_email || '—')}</td>
+          <td>${esc(c.contact_phone || '—')}</td>
+          <td>${c.job_count || 0}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="5"><div class="empty-state" style="padding:32px"><p>No clients yet.</p></div></td></tr>`;
+  }
+
+  app.innerHTML = `
+    <div class="screen-header">
+      <div class="screen-header-left"><h1>Clients</h1><p>${clients.length} clients</p></div>
+      <button class="btn btn-primary" onclick="openClientModal(null)">+ New Client</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Contact</th><th>Email</th><th>Phone</th><th>Jobs</th></tr></thead>
+        <tbody id="clients-tbody"></tbody>
+      </table>
+    </div>
+  `;
+  renderTable();
+
+  window.openClientModal = async (id) => {
+    const client = id ? clients.find(c => c.id === id) : null;
+    const overlay = openModal(`
+      <div class="modal-header">
+        <h2>${client ? 'Edit Client' : 'New Client'}</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+      <form id="client-form">
+        <div class="form-group"><label>Name *</label><input name="name" value="${esc(client?.name||'')}" required></div>
+        <div class="form-row form-row-2">
+          <div class="form-group"><label>Contact Name</label><input name="contact_name" value="${esc(client?.contact_name||'')}"></div>
+          <div class="form-group"><label>Email</label><input type="email" name="contact_email" value="${esc(client?.contact_email||'')}"></div>
+        </div>
+        <div class="form-row form-row-2">
+          <div class="form-group"><label>Phone</label><input name="contact_phone" value="${esc(client?.contact_phone||'')}"></div>
+          <div class="form-group"><label>Address</label><input name="address" value="${esc(client?.address||'')}"></div>
+        </div>
+        <div class="form-group"><label>Notes</label><textarea name="notes" rows="2">${esc(client?.notes||'')}</textarea></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          ${client ? `<button type="button" class="btn btn-danger btn-sm" onclick="archiveClient('${client.id}', this.closest('.modal-overlay'))">Archive</button>` : ''}
+          <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button type="submit" class="btn btn-primary">${client ? 'Save' : 'Create'}</button>
+        </div>
+      </form>
+    `);
+
+    overlay.querySelector('#client-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(e.target).entries());
+      try {
+        if (client) {
+          const updated = await apiFetch(`/api/clients/${client.id}`, { method: 'PUT', body });
+          clients = clients.map(c => c.id === client.id ? { ...c, ...updated } : c);
+        } else {
+          const created = await apiFetch('/api/clients', { method: 'POST', body });
+          clients.unshift(created);
+        }
+        overlay.remove();
+        renderTable();
+        showToast(client ? 'Client updated' : 'Client created');
+      } catch (err) { showToast(err.message, 'error'); }
+    });
+  };
+
+  window.archiveClient = async (id, overlayEl) => {
+    if (!confirm('Archive this client?')) return;
+    await apiFetch(`/api/clients/${id}`, { method: 'DELETE' });
+    clients = clients.filter(c => c.id !== id);
+    overlayEl.remove();
+    renderTable();
+    showToast('Client archived');
+  };
+}
+
+async function renderCountries() {
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
+  const countries = await apiFetch('/api/countries');
+
+  const cards = Object.entries(countries).map(([code, c]) => `
+    <div class="country-card">
+      <h2>
+        <span>${esc(c.name)}</span>
+        <span class="muted" style="font-size:11px">${esc(c.regulatory_body)} · ${esc(c.framework)}</span>
+      </h2>
+      <div style="margin-bottom:10px">
+        ${(c.jack_credentials || []).map(cred => `<span class="cred-badge">${esc(cred)}</span>`).join('')}
+      </div>
+      <h3>Required Permissions</h3>
+      <div class="table-wrap" style="margin-bottom:12px">
+        <table>
+          <thead><tr><th>Permission</th><th>Authority</th><th>Lead Time</th><th>Notes</th></tr></thead>
+          <tbody>
+            ${(c.permissions || []).map(p => `
+              <tr>
+                <td>${esc(p.label)}</td>
+                <td>${esc(p.authority || '—')}</td>
+                <td>${p.lead_time_days > 0 ? p.lead_time_days + ' days' : 'Same day'}</td>
+                <td style="font-size:11px;color:var(--muted)">${esc(p.notes || '')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${c.notes ? `<p style="font-size:12px;color:var(--muted)">${esc(c.notes)}</p>` : ''}
+    </div>
+  `).join('');
+
+  app.innerHTML = `
+    <div class="screen-header">
+      <div class="screen-header-left">
+        <h1>Countries</h1>
+        <p>Regulatory reference — edit knowledge/countries.json to update</p>
+      </div>
+    </div>
+    ${cards}
+  `;
+}
+
+async function renderSettings() {
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="loading-screen"><span class="loading-icon">◈</span></div>`;
+  const [settings, aircraft] = await Promise.all([
+    apiFetch('/api/settings'),
+    apiFetch('/api/aircraft'),
+  ]);
+
+  app.innerHTML = `
+    <div class="screen-header">
+      <div class="screen-header-left"><h1>Settings</h1></div>
+    </div>
+    <div class="card-grid card-grid-2">
+      <div>
+        <h2>Pilot Details &amp; Credentials</h2>
+        <form id="settings-form">
+          <div class="form-group"><label>Full Name</label><input name="name" value="${esc(settings.name||'')}"></div>
+          <div class="form-row form-row-2">
+            <div class="form-group"><label>Email</label><input name="email" value="${esc(settings.email||'')}"></div>
+            <div class="form-group"><label>Phone</label><input name="phone" value="${esc(settings.phone||'')}"></div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group"><label>Operator ID</label><input name="operator_id" value="${esc(settings.operator_id||'')}"></div>
+            <div class="form-group"><label>Flyer ID</label><input name="flyer_id" value="${esc(settings.flyer_id||'')}"></div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group"><label>Flyer ID Expiry</label><input type="date" name="flyer_id_expiry" value="${esc(settings.flyer_id_expiry||'')}"></div>
+            <div class="form-group"><label>PDRA01 Ref</label><input name="pdra01_ref" value="${esc(settings.pdra01_ref||'')}"></div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group"><label>PDRA01 Expiry</label><input type="date" name="pdra01_expiry" value="${esc(settings.pdra01_expiry||'')}"></div>
+            <div class="form-group"><label>GVC Ref</label><input name="gvc_ref" value="${esc(settings.gvc_ref||'')}"></div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group"><label>FAA Part 107</label><input name="faa_part107_ref" value="${esc(settings.faa_part107_ref||'')}"></div>
+            <div class="form-group"><label>Irish IAA Ref</label><input name="iau_ref" value="${esc(settings.iau_ref||'')}"></div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group"><label>Document Accent Colour</label><input type="color" name="document_accent_colour" value="${esc(settings.document_accent_colour||'#1d4ed8')}" style="height:38px"></div>
+            <div class="form-group"><label>Mapbox Token</label><input name="mapbox_token" value="${esc(settings.mapbox_token||'')}"></div>
+          </div>
+          <div class="form-group"><label>AI Style Prompt</label>
+            <textarea name="ai_style_prompt" rows="3" placeholder="Write in a professional but direct style...">${esc(settings.ai_style_prompt||'')}</textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Save Settings</button>
+        </form>
+      </div>
+      <div>
+        <h2>Aircraft Fleet</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Aircraft</th><th>Weight</th><th>Max Wind</th><th>Prop Protection</th></tr></thead>
+            <tbody>
+              ${aircraft.map(a => `
+                <tr>
+                  <td>${esc(a.make)} ${esc(a.model)}<br><span class="muted" style="font-size:10px">${esc(a.identifier||'')}</span></td>
+                  <td>${a.weight_g ? a.weight_g + 'g' : '—'}</td>
+                  <td>${a.max_wind_ms ? a.max_wind_ms + ' m/s' : '—'}</td>
+                  <td>${esc(a.prop_protection || '—')}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="font-size:11px;margin-top:8px">Aircraft fleet is pre-seeded. Edit server/db.js to add/remove aircraft.</p>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('settings-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target).entries());
+    try {
+      await apiFetch('/api/settings', { method: 'PUT', body });
+      showToast('Settings saved');
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
 // ══════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════
@@ -1007,6 +1215,9 @@ register('/', renderDashboard);
 register('/dashboard', renderDashboard);
 register('/jobs', renderJobsList);
 register('/jobs/:id', renderJobDetail);
+register('/clients', renderClients);
+register('/countries', renderCountries);
+register('/settings', renderSettings);
 
 window.addEventListener('hashchange', handleRoute);
 window.addEventListener('DOMContentLoaded', () => {
