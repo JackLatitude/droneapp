@@ -17,9 +17,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
 app.use(express.json({ limit: '5mb' }));
-app.use(basicAuth);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+app.use(basicAuth);
 
 // Routes mounted in later tasks
 app.use('/api/clients', clientsRouter);
